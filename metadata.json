@@ -1,0 +1,5 @@
+{
+  "name": "QR Clue Manager",
+  "description": "A web application for managing multimedia clues accessible via QR codes, designed for treasure hunts and escape games.",
+  "requestFramePermissions": []
+}

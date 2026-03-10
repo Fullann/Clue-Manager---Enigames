@@ -1,0 +1,49 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Quill Editor Dark Mode Overrides */
+.dark .ql-toolbar {
+  background-color: #27272a; /* zinc-800 */
+  border-color: #3f3f46 !important; /* zinc-700 */
+}
+.dark .ql-container {
+  border-color: #3f3f46 !important; /* zinc-700 */
+  color: #f4f4f5; /* zinc-100 */
+}
+.dark .ql-stroke {
+  stroke: #a1a1aa !important; /* zinc-400 */
+}
+.dark .ql-fill {
+  fill: #a1a1aa !important; /* zinc-400 */
+}
+.dark .ql-picker {
+  color: #a1a1aa !important; /* zinc-400 */
+}
+.dark .ql-picker-options {
+  background-color: #27272a !important; /* zinc-800 */
+  border-color: #3f3f46 !important; /* zinc-700 */
+}
+.dark .ql-picker-item:hover {
+  color: #f4f4f5 !important; /* zinc-100 */
+}
+.dark .ql-picker-label:hover {
+  color: #f4f4f5 !important; /* zinc-100 */
+}
+.dark .ql-picker-label:hover .ql-stroke {
+  stroke: #f4f4f5 !important; /* zinc-100 */
+}
+.dark .ql-picker-label:hover .ql-fill {
+  fill: #f4f4f5 !important; /* zinc-100 */
+}
+.dark .ql-snow .ql-tooltip {
+  background-color: #27272a !important; /* zinc-800 */
+  border-color: #3f3f46 !important; /* zinc-700 */
+  color: #f4f4f5 !important; /* zinc-100 */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5) !important;
+}
+.dark .ql-snow .ql-tooltip input[type=text] {
+  background-color: #18181b !important; /* zinc-900 */
+  border-color: #3f3f46 !important; /* zinc-700 */
+  color: #f4f4f5 !important; /* zinc-100 */
+}
