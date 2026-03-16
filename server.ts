@@ -16,6 +16,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = 3000;
 
 // Setup SQLite DB
@@ -105,13 +106,15 @@ const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key-for-admin";
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // limit each IP to 10 requests per windowMs
-  message: { error: "Too many login attempts, please try again after 15 minutes" }
+  message: { error: "Too many login attempts, please try again after 15 minutes" },
+  validate: { xForwardedForHeader: false, forwardedHeader: false }
 });
 
 const unlockLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 20, // limit each IP to 20 unlock attempts per windowMs
-  message: { error: "Too many unlock attempts, please try again later" }
+  message: { error: "Too many unlock attempts, please try again later" },
+  validate: { xForwardedForHeader: false, forwardedHeader: false }
 });
 
 // Admin Auth Middleware
