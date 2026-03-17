@@ -1,53 +1,45 @@
-name: Build & Deploy Vite to SFTP
+name: Deploy to Production
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: 🚚 Récupérer le code
         uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: 🟢 Configurer Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
 
-      - name: Install dependencies
+      - name: 📦 Installer les dépendances
         run: npm ci
 
-      - name: Build (with env)
+      - name: 🏗️ Construire l'application (Build frontend)
         run: npm run build
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist
+      - name: 📁 Préparer les fichiers de production
+        run: |
+          mkdir deploy_prod
+          cp -r dist deploy_prod/
+          cp server.ts deploy_prod/
+          cp package.json deploy_prod/
+          cp package-lock.json deploy_prod/
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist
-
-      - name: Deploy via FTP/FTPS
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+      - name: 🚀 Envoyer les fichiers via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
           server: ${{ secrets.SFTP_HOST }}
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASSWORD }}
           port: ${{ secrets.SFTP_PORT }}
-          protocol: ftps
-          local-dir: dist/
-          server-dir: /
-          dangerous-clean-slate: true
- 
+          local_path: './deploy_prod/*'
+          remote_path: '/'
+          sftp_only: true
