@@ -29,7 +29,7 @@ jobs:
         run: |
           mkdir deploy_prod
           cp -r dist deploy_prod/
-          cp server.ts deploy_prod/
+          cp server.js deploy_prod/
           cp package.json deploy_prod/
           cp package-lock.json deploy_prod/
 
