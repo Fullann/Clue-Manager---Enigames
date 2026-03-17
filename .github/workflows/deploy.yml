@@ -20,25 +20,42 @@ jobs:
           cache: 'npm'
 
       - name: 📦 Installer les dépendances
-        run: npm ci
+        run: npm install
 
       - name: 🏗️ Construire l'application (Build frontend)
-        run: npm run build
+        run: |
+          npm run build
+          mkdir -p deploy_prod
+
+      - name: 🛠️ Compiler better-sqlite3 pour le serveur (GLIBC 2.28)
+        uses: addnab/docker-run-action@v3
+        with:
+          image: almalinux:8
+          options: -v ${{ github.workspace }}:/workspace -w /workspace
+          run: |
+            dnf install -y gcc-c++ make python3
+            curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+            dnf install -y nodejs
+            npm rebuild better-sqlite3 --build-from-source
+            mkdir -p deploy_prod/node_modules/better-sqlite3/build/Release/
+            cp node_modules/better-sqlite3/build/Release/better_sqlite3.node deploy_prod/node_modules/better-sqlite3/build/Release/
 
       - name: 📁 Préparer les fichiers de production
         run: |
-          mkdir deploy_prod
+          # On copie uniquement ce qui est nécessaire pour faire tourner le serveur
           cp -r dist deploy_prod/
           cp server.js deploy_prod/
           cp package.json deploy_prod/
           cp package-lock.json deploy_prod/
+          # Le fichier better_sqlite3.node est déjà dans deploy_prod/node_modules/...
 
-      - name: 🚀 Envoyer les fichiers via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+      - name: 🚀 Envoyer les fichiers via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
           server: ${{ secrets.SFTP_HOST }}
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASSWORD }}
           port: ${{ secrets.SFTP_PORT }}
-          local-dir: ./deploy_prod/
-          server-dir: /app/
+          local_path: './deploy_prod/*'
+          remote_path: '/app/'
+          sftp_only: true
