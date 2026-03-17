@@ -33,13 +33,12 @@ jobs:
           cp package.json deploy_prod/
           cp package-lock.json deploy_prod/
 
-      - name: 🚀 Envoyer les fichiers via SFTP
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+      - name: 🚀 Envoyer les fichiers via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
           server: ${{ secrets.SFTP_HOST }}
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASSWORD }}
           port: ${{ secrets.SFTP_PORT }}
-          local_path: './deploy_prod/*'
-          remote_path: '/'
-          sftp_only: true
+          local-dir: ./deploy_prod/
+          server-dir: /app/
