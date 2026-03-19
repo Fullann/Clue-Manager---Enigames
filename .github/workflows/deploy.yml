@@ -10,35 +10,49 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 📁 Préparer les fichiers de production
-      run: |
-        mkdir -p deploy_prod
-        cp -r dist deploy_prod/
-        cp server.js deploy_prod/
-        cp package.json deploy_prod/
-        cp package-lock.json deploy_prod/
-        # Pas de node_modules compilés manuellement !
+      - name: 🚚 Récupérer le code
+        uses: actions/checkout@v4
 
-    - name: 🚀 Envoyer les fichiers via SFTP
-      uses: wlixcc/SFTP-Deploy-Action@v1.2.4
-      with:
-        server: ${{ secrets.SFTP_HOST }}
-        username: ${{ secrets.SFTP_USER }}
-        password: ${{ secrets.SFTP_PASSWORD }}
-        port: ${{ secrets.SFTP_PORT }}
-        local_path: './deploy_prod/*'
-        remote_path: './app'
-        sftp_only: true
+      - name: 🟢 Configurer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
-    - name: 🔧 Installer les dépendances sur le serveur (SSH)
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.SFTP_HOST }}
-        username: ${{ secrets.SFTP_USER }}
-        password: ${{ secrets.SFTP_PASSWORD }}
-        port: ${{ secrets.SFTP_PORT }}
-        script: |
-          source ~/nodevenv/indices.enigames.ch/app/20/bin/activate
-          cd ./app
-          npm ci --production
+      - name: 📦 Installer les dépendances
+        run: npm ci
 
+      - name: 🏗️ Build (frontend + server)
+        run: npm run build
+        # Génère dist/ via Vite ET server.js via esbuild
+
+      - name: 📁 Préparer les fichiers de production
+        run: |
+          mkdir -p deploy_prod
+          cp -r dist deploy_prod/
+          cp server.js deploy_prod/
+          cp package.json deploy_prod/
+          cp package-lock.json deploy_prod/
+
+      - name: 🚀 Envoyer les fichiers via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          server: ${{ secrets.SFTP_HOST }}
+          username: ${{ secrets.SFTP_USER }}
+          password: ${{ secrets.SFTP_PASSWORD }}
+          port: ${{ secrets.SFTP_PORT }}
+          local_path: './deploy_prod/*'
+          remote_path: '/home/${{ secrets.SFTP_USER }}/indices.enigames.ch/app'
+          sftp_only: true
+
+      - name: 🔧 Installer les dépendances sur le serveur (SSH)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SFTP_HOST }}
+          username: ${{ secrets.SFTP_USER }}
+          password: ${{ secrets.SFTP_PASSWORD }}
+          port: ${{ secrets.SFTP_PORT }}
+          script: |
+            source ~/nodevenv/indices.enigames.ch/app/20/bin/activate
+            cd ~/indices.enigames.ch/app
+            npm ci --omit=dev
