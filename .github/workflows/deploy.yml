@@ -1,4 +1,16 @@
-- name: 📁 Préparer les fichiers de production
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+   - name: 📁 Préparer les fichiers de production
   run: |
     mkdir -p deploy_prod
     cp -r dist deploy_prod/
@@ -15,7 +27,7 @@
     password: ${{ secrets.SFTP_PASSWORD }}
     port: ${{ secrets.SFTP_PORT }}
     local_path: './deploy_prod/*'
-    remote_path: '/indices.enigames.ch/app/'
+    remote_path: './app'
     sftp_only: true
 
 - name: 🔧 Installer les dépendances sur le serveur (SSH)
@@ -27,5 +39,6 @@
     port: ${{ secrets.SFTP_PORT }}
     script: |
       source ~/nodevenv/indices.enigames.ch/app/20/bin/activate
-      cd ~/indices.enigames.ch/app
+      cd ./app
       npm ci --production
+
