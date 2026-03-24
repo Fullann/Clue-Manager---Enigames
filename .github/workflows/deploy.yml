@@ -43,7 +43,7 @@ jobs:
           password: ${{ secrets.SFTP_PASSWORD }}
           port: ${{ secrets.SFTP_PORT }}
           local_path: './deploy_prod/*'
-          remote_path: './app'
+          remote_path: '/app/'
           sftp_only: true
 
       - name: 🔧 Installer les dépendances sur le serveur (SSH)
