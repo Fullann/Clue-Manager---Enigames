@@ -69,7 +69,7 @@ Notes:
 
 Le workflow `.github/workflows/deploy.yml`:
 - build le front + serveur
-- envoie les artefacts via SFTP
+- envoie les artefacts via rsync/SSH
 - installe les dependances de production par SSH
 
 ### Secrets GitHub requis

@@ -8,6 +8,7 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: 🚚 Récupérer le code
@@ -35,16 +36,24 @@ jobs:
           cp package-lock.json deploy_prod/
           cp .env.example deploy_prod/
 
-      - name: 🚀 Envoyer les fichiers via SFTP
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+      - name: 📂 Créer le dossier cible
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          server: ${{ secrets.SFTP_HOST }}
+          host: ${{ secrets.SFTP_HOST }}
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASSWORD }}
           port: ${{ secrets.SFTP_PORT }}
-          local_path: './deploy_prod/*'
-          remote_path: '/app/'
-          sftp_only: true
+          script: |
+            mkdir -p ${{ secrets.APP_PATH }}
+
+      - name: 🚀 Envoyer les fichiers via rsync
+        env:
+          SSHPASS: ${{ secrets.SFTP_PASSWORD }}
+        run: |
+          rsync -avz --delete \
+            -e "sshpass -e ssh -p ${{ secrets.SFTP_PORT }} -o StrictHostKeyChecking=no" \
+            ./deploy_prod/ \
+            ${{ secrets.SFTP_USER }}@${{ secrets.SFTP_HOST }}:${{ secrets.APP_PATH }}/
 
       - name: 🔧 Installer les dépendances sur le serveur (SSH)
         uses: appleboy/ssh-action@v1.0.3
