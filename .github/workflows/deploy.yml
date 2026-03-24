@@ -33,6 +33,7 @@ jobs:
           cp server.js deploy_prod/
           cp package.json deploy_prod/
           cp package-lock.json deploy_prod/
+          cp .env.example deploy_prod/
 
       - name: 🚀 Envoyer les fichiers via SFTP
         uses: wlixcc/SFTP-Deploy-Action@v1.2.4
@@ -42,7 +43,7 @@ jobs:
           password: ${{ secrets.SFTP_PASSWORD }}
           port: ${{ secrets.SFTP_PORT }}
           local_path: './deploy_prod/*'
-          remote_path: '/home/${{ secrets.SFTP_USER }}/indices.enigames.ch/app'
+          remote_path: '${{ secrets.APP_PATH }}'
           sftp_only: true
 
       - name: 🔧 Installer les dépendances sur le serveur (SSH)
@@ -53,6 +54,7 @@ jobs:
           password: ${{ secrets.SFTP_PASSWORD }}
           port: ${{ secrets.SFTP_PORT }}
           script: |
-            source ~/nodevenv/indices.enigames.ch/app/20/bin/activate
-            cd ~/indices.enigames.ch/app
+            source ${{ secrets.NODEVENV_ACTIVATE_PATH }}
+            cd ${{ secrets.APP_PATH }}
             npm ci --omit=dev
+            mkdir -p uploads

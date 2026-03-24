@@ -1,0 +1,47 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: clue_manager_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: clue_manager
+      MYSQL_USER: clue_user
+      MYSQL_PASSWORD: clue_password
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: clue_manager_app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: change-me-for-local-tests
+      ADMIN_PASSWORD: admin123
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: clue_user
+      MYSQL_PASSWORD: clue_password
+      MYSQL_DATABASE: clue_manager
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads_data:/app/uploads
+
+volumes:
+  mysql_data:
+  uploads_data:
