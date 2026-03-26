@@ -27,6 +27,9 @@ jobs:
         run: npm run build
         # Génère dist/ via Vite ET server.js via esbuild
 
+      - name: 📦 Installer les dépendances production
+        run: npm ci --omit=dev
+
       - name: 📁 Préparer les fichiers de production
         run: |
           mkdir -p deploy_prod
@@ -34,35 +37,18 @@ jobs:
           cp server.js deploy_prod/
           cp package.json deploy_prod/
           cp package-lock.json deploy_prod/
+          cp -r node_modules deploy_prod/
           cp .env.example deploy_prod/
+          mkdir -p deploy_prod/uploads
 
-      - name: 📂 Créer le dossier cible
-        uses: appleboy/ssh-action@v1.0.3
+      - name: 🚀 Envoyer les fichiers via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
-          host: ${{ secrets.SFTP_HOST }}
+          server: ${{ secrets.SFTP_HOST }}
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASSWORD }}
           port: ${{ secrets.SFTP_PORT }}
-          script: |
-            mkdir -p ${{ secrets.APP_PATH }}
-
-      - name: 🚀 Envoyer les fichiers via rsync
-        env:
-          SSHPASS: ${{ secrets.SFTP_PASSWORD }}
-        run: |
-          rsync -avz --delete \
-            -e "sshpass -e ssh -p ${{ secrets.SFTP_PORT }} -o StrictHostKeyChecking=no" \
-            ./deploy_prod/ \
-            ${{ secrets.SFTP_USER }}@${{ secrets.SFTP_HOST }}:${{ secrets.APP_PATH }}/
-
-      - name: 🔧 Installer les dépendances sur le serveur (SSH)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SFTP_HOST }}
-          username: ${{ secrets.SFTP_USER }}
-          password: ${{ secrets.SFTP_PASSWORD }}
-          port: ${{ secrets.SFTP_PORT }}
-          script: |
-            cd ${{ secrets.APP_PATH }}
-            npm ci --omit=dev
-            mkdir -p uploads
+          local_path: './deploy_prod/*'
+          remote_path: '${{ secrets.APP_PATH }}'
+          delete_remote_files: false
+          sftp_only: true

@@ -69,8 +69,8 @@ Notes:
 
 Le workflow `.github/workflows/deploy.yml`:
 - build le front + serveur
-- envoie les artefacts via rsync/SSH
-- installe les dependances de production par SSH
+- installe les dependances de production dans GitHub Actions
+- envoie les artefacts via SFTP (sans SSH)
 
 ### Secrets GitHub requis
 
@@ -79,7 +79,6 @@ Le workflow `.github/workflows/deploy.yml`:
 - `SFTP_PASSWORD`
 - `SFTP_PORT`
 - `APP_PATH` (exemple: `/home/<user>/votre-domaine/app`)
-- `NODEVENV_ACTIVATE_PATH` (exemple: `/home/<user>/nodevenv/votre-domaine/app/20/bin/activate`)
 
 ### Configuration o2switch conseillee
 
@@ -87,5 +86,5 @@ Le workflow `.github/workflows/deploy.yml`:
 - Version Node.js: 20
 - Point d'entree: `server.js`
 - Repertoire de l'application: meme valeur que `APP_PATH`
-- Ajouter les variables d'environnement dans cPanel (ou dans le script de demarrage)
+- Ajouter les variables d'environnement dans cPanel
 - Verifier que la base MySQL est creee et accessible avec les identifiants definis
