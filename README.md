@@ -69,8 +69,8 @@ Notes:
 
 Le workflow `.github/workflows/deploy.yml`:
 - build le front + serveur
-- installe les dependances de production dans GitHub Actions
-- envoie les artefacts via SFTP (sans SSH)
+- prepare un artefact de deploiement complet
+- deploie via FTP/FTPS (sans SSH)
 
 ### Secrets GitHub requis
 
@@ -78,7 +78,7 @@ Le workflow `.github/workflows/deploy.yml`:
 - `SFTP_USER`
 - `SFTP_PASSWORD`
 - `SFTP_PORT`
-- `APP_PATH` (exemple: `/home/<user>/votre-domaine/app`)
+- `APP_PATH` (dossier FTP cible, exemple: `/app`)
 
 ### Configuration o2switch conseillee
 
