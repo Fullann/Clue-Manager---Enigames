@@ -27,7 +27,7 @@ export default function AdminLogin() {
       setRequire2FA(true);
       setError("");
     } else {
-      setError(data.error || "Login failed");
+      setError(data.error || "Connexion echouee");
     }
   };
 
@@ -43,13 +43,13 @@ export default function AdminLogin() {
           </div>
         </div>
         <h2 className="text-2xl font-semibold text-center text-zinc-900 dark:text-white mb-8">
-          Admin Login
+          Connexion admin
         </h2>
         <form onSubmit={handleLogin} className="space-y-6">
           {!require2FA ? (
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                Password
+                Mot de passe
               </label>
               <input
                 type="password"
@@ -63,7 +63,7 @@ export default function AdminLogin() {
           ) : (
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                2FA Code
+                Code 2FA
               </label>
               <input
                 type="text"
@@ -81,7 +81,7 @@ export default function AdminLogin() {
                   onClick={() => { setRequire2FA(false); setToken(""); }}
                   className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
                 >
-                  Back to password
+                  Retour au mot de passe
                 </button>
               </div>
             </div>
@@ -91,7 +91,7 @@ export default function AdminLogin() {
             type="submit"
             className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors"
           >
-            {require2FA ? "Verify Code" : "Sign In"}
+            {require2FA ? "Verifier le code" : "Se connecter"}
           </button>
         </form>
       </div>

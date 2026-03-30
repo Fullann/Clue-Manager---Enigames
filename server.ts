@@ -37,6 +37,28 @@ type ClueRow = RowDataPacket & {
   created_at: string;
 };
 
+type GridItemInput = {
+  id: string;
+  type: "text" | "image" | "video" | "audio";
+  row: number;
+  col: number;
+  rowSpan: number;
+  colSpan: number;
+  zIndex?: number;
+  text?: string;
+  content?: string;
+  fileIndex?: number;
+};
+
+type CustomTheme = {
+  id: string;
+  name: string;
+  pageBgColor: string;
+  pageTextColor: string;
+  cardBgColor: string;
+  cardBorderColor: string;
+};
+
 async function selectOne<T extends RowDataPacket>(query: string, params: any[] = []): Promise<T | null> {
   const [rows] = await db.query<T[]>(query, params);
   return rows[0] ?? null;
@@ -49,6 +71,102 @@ async function selectAll<T extends RowDataPacket>(query: string, params: any[] =
 
 async function execute(query: string, params: any[] = []) {
   await db.execute(query, params);
+}
+
+async function getCustomThemes(): Promise<CustomTheme[]> {
+  const row = await selectOne<SettingRow>("SELECT `value` FROM settings WHERE `key` = 'custom_themes'");
+  if (!row) return [];
+  try {
+    const parsed = JSON.parse(row.value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveCustomThemes(themes: CustomTheme[]) {
+  await execute(
+    "INSERT INTO settings (`key`, `value`) VALUES ('custom_themes', ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)",
+    [JSON.stringify(themes)]
+  );
+}
+
+async function resolveThemeConfig(theme: string): Promise<CustomTheme | null> {
+  if (!theme.startsWith("custom:")) return null;
+  const customId = theme.replace("custom:", "");
+  const themes = await getCustomThemes();
+  return themes.find((item) => item.id === customId) || null;
+}
+
+function normalizeGridItems(rawItems: unknown): GridItemInput[] {
+  if (!Array.isArray(rawItems)) {
+    throw new Error("Invalid grid payload");
+  }
+
+  return rawItems.map((item) => {
+    const typedItem = item as GridItemInput;
+    if (!typedItem?.id || !typedItem?.type) {
+      throw new Error("Each grid item must contain id and type");
+    }
+    if (!["text", "image", "video", "audio"].includes(typedItem.type)) {
+      throw new Error("Unsupported grid item type");
+    }
+
+    const row = Number(typedItem.row);
+    const col = Number(typedItem.col);
+    const rowSpan = Math.max(1, Number(typedItem.rowSpan || 1));
+    const colSpan = Math.max(1, Number(typedItem.colSpan || 1));
+    const zIndex = Math.max(1, Number(typedItem.zIndex || 1));
+
+    return {
+      id: String(typedItem.id),
+      type: typedItem.type,
+      row: Number.isFinite(row) ? row : 0,
+      col: Number.isFinite(col) ? col : 0,
+      rowSpan: Number.isFinite(rowSpan) ? rowSpan : 1,
+      colSpan: Number.isFinite(colSpan) ? colSpan : 1,
+      zIndex: Number.isFinite(zIndex) ? zIndex : 1,
+      text: typedItem.text ? String(typedItem.text) : undefined,
+      content: typedItem.content ? String(typedItem.content) : undefined,
+      fileIndex: typedItem.fileIndex !== undefined ? Number(typedItem.fileIndex) : undefined,
+    };
+  });
+}
+
+function buildGridContent(gridItemsRaw: string | undefined, files: Express.Multer.File[] | undefined): string {
+  if (!gridItemsRaw) {
+    throw new Error("Missing grid_items payload");
+  }
+
+  const parsed = JSON.parse(gridItemsRaw);
+  const items = normalizeGridItems(parsed);
+  const uploadedFiles = files || [];
+
+  const resolvedItems = items.map((item) => {
+    if (item.type === "text") {
+      return { ...item, content: undefined, fileIndex: undefined };
+    }
+
+    if (typeof item.fileIndex === "number") {
+      const uploaded = uploadedFiles[item.fileIndex];
+      if (!uploaded) {
+        throw new Error(`Missing uploaded file for item ${item.id}`);
+      }
+      return {
+        ...item,
+        content: `/uploads/${uploaded.filename}`,
+        fileIndex: undefined,
+      };
+    }
+
+    if (item.content?.startsWith("/uploads/")) {
+      return { ...item, fileIndex: undefined };
+    }
+
+    throw new Error(`Missing media file for item ${item.id}`);
+  });
+
+  return JSON.stringify(resolvedItems);
 }
 
 async function initializeDatabase() {
@@ -102,12 +220,12 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  const allowedMimeTypes = [
-    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-    'audio/mpeg', 'audio/wav', 'audio/ogg',
-    'video/mp4', 'video/webm'
-  ];
-  if (allowedMimeTypes.includes(file.mimetype)) {
+  const isAllowed =
+    file.mimetype.startsWith("image/") ||
+    file.mimetype.startsWith("audio/") ||
+    file.mimetype.startsWith("video/");
+
+  if (isAllowed) {
     cb(null, true);
   } else {
     cb(new Error('Invalid file type. Only images, audio, and video are allowed.'));
@@ -206,6 +324,38 @@ app.get("/api/admin/check", requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+app.get("/api/admin/themes", requireAdmin, asyncHandler(async (req, res) => {
+  const themes = await getCustomThemes();
+  res.json(themes);
+}));
+
+app.post("/api/admin/themes", requireAdmin, asyncHandler(async (req, res) => {
+  const { name, pageBgColor, pageTextColor, cardBgColor, cardBorderColor } = req.body;
+  if (!name || !String(name).trim()) {
+    return res.status(400).json({ error: "Theme name is required" });
+  }
+  const nextTheme: CustomTheme = {
+    id: uuidv4(),
+    name: String(name).trim(),
+    pageBgColor: String(pageBgColor || "#111827"),
+    pageTextColor: String(pageTextColor || "#f9fafb"),
+    cardBgColor: String(cardBgColor || "#1f2937"),
+    cardBorderColor: String(cardBorderColor || "#374151"),
+  };
+  const themes = await getCustomThemes();
+  themes.push(nextTheme);
+  await saveCustomThemes(themes);
+  res.json({ success: true, theme: nextTheme });
+}));
+
+app.delete("/api/admin/themes/:id", requireAdmin, asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const themes = await getCustomThemes();
+  const nextThemes = themes.filter((item) => item.id !== id);
+  await saveCustomThemes(nextThemes);
+  res.json({ success: true });
+}));
+
 // Admin Settings
 app.get("/api/admin/settings", requireAdmin, asyncHandler(async (req, res) => {
   const twoFactorEnabled = await selectOne<SettingRow>("SELECT `value` FROM settings WHERE `key` = '2fa_enabled'");
@@ -285,10 +435,38 @@ app.get("/api/admin/clues/:id", requireAdmin, asyncHandler(async (req, res) => {
   if (!clue) {
     return res.status(404).json({ error: "Clue not found" });
   }
-  res.json(clue);
+  const theme_config = await resolveThemeConfig(clue.theme);
+  res.json({ ...clue, theme_config });
 }));
 
-app.put("/api/admin/clues/:id", requireAdmin, upload.fields([{ name: "file", maxCount: 1 }, { name: "bg_image", maxCount: 1 }]), asyncHandler(async (req, res) => {
+app.post("/api/admin/clues/bulk-category", requireAdmin, asyncHandler(async (req, res) => {
+  const { ids, category } = req.body as { ids?: string[]; category?: string };
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "ids is required" });
+  }
+  if (!category || !String(category).trim()) {
+    return res.status(400).json({ error: "category is required" });
+  }
+
+  const placeholders = ids.map(() => "?").join(", ");
+  await execute(
+    `UPDATE clues SET category = ? WHERE id IN (${placeholders})`,
+    [String(category).trim(), ...ids]
+  );
+  res.json({ success: true, updated: ids.length });
+}));
+
+app.post("/api/admin/clues/bulk-delete", requireAdmin, asyncHandler(async (req, res) => {
+  const { ids } = req.body as { ids?: string[] };
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: "ids is required" });
+  }
+  const placeholders = ids.map(() => "?").join(", ");
+  await execute(`DELETE FROM clues WHERE id IN (${placeholders})`, ids);
+  res.json({ success: true, deleted: ids.length });
+}));
+
+app.put("/api/admin/clues/:id", requireAdmin, upload.fields([{ name: "file", maxCount: 1 }, { name: "bg_image", maxCount: 1 }, { name: "item_files", maxCount: 30 }]), asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { title, type, protection_type, protection_code, text_content, theme = "default", category = "Uncategorized" } = req.body;
   
@@ -304,6 +482,8 @@ app.put("/api/admin/clues/:id", requireAdmin, upload.fields([{ name: "file", max
   let content = existingClue.content;
   if (type === "text") {
     content = text_content || "";
+  } else if (type === "grid") {
+    content = buildGridContent(req.body.grid_items, files?.["item_files"]);
   } else if (file) {
     // Delete old file if it was a media type
     if (existingClue.type !== "text" && existingClue.content.startsWith("/uploads/")) {
@@ -337,7 +517,7 @@ app.put("/api/admin/clues/:id", requireAdmin, upload.fields([{ name: "file", max
   res.json({ success: true, id });
 }));
 
-app.post("/api/admin/clues", requireAdmin, upload.fields([{ name: "file", maxCount: 1 }, { name: "bg_image", maxCount: 1 }]), asyncHandler(async (req, res) => {
+app.post("/api/admin/clues", requireAdmin, upload.fields([{ name: "file", maxCount: 1 }, { name: "bg_image", maxCount: 1 }, { name: "item_files", maxCount: 30 }]), asyncHandler(async (req, res) => {
   const { title, type, protection_type, protection_code, text_content, theme = "default", category = "Uncategorized" } = req.body;
   const id = uuidv4();
   
@@ -348,6 +528,8 @@ app.post("/api/admin/clues", requireAdmin, upload.fields([{ name: "file", maxCou
   let content = "";
   if (type === "text") {
     content = text_content || "";
+  } else if (type === "grid") {
+    content = buildGridContent(req.body.grid_items, files?.["item_files"]);
   } else if (file) {
     content = `/uploads/${file.filename}`;
   } else {
@@ -401,7 +583,8 @@ app.get("/api/clues/:id/meta", asyncHandler(async (req, res) => {
     res.cookie(viewedCookie, "true", { maxAge: 1000 * 60 * 60 * 24, httpOnly: true, sameSite: "lax" }); // 1 day
   }
   
-  res.json(clue);
+  const theme_config = await resolveThemeConfig(clue.theme);
+  res.json({ ...clue, theme_config });
 }));
 
 app.post("/api/clues/:id/unlock", unlockLimiter, asyncHandler(async (req, res) => {
@@ -421,13 +604,15 @@ app.post("/api/clues/:id/unlock", unlockLimiter, asyncHandler(async (req, res) =
     }
   }
   
+  const theme_config = await resolveThemeConfig(clue.theme);
   res.json({
     id: clue.id,
     title: clue.title,
     type: clue.type,
     content: clue.content,
     theme: clue.theme,
-    theme_bg_image: clue.theme_bg_image
+    theme_bg_image: clue.theme_bg_image,
+    theme_config
   });
 }));
 

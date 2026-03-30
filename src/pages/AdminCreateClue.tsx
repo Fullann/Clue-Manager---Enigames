@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Upload, Type, Image as ImageIcon, Video, Music } from "lucide-react";
+import { ArrowLeft, Upload, Type, Image as ImageIcon, Video, Music, LayoutGrid } from "lucide-react";
 import { ThemeToggle } from "../components/ThemeToggle";
 import ReactQuill from "react-quill-new";
+import GridComposer, { GridComposerItem } from "../components/GridComposer";
 import "react-quill-new/dist/quill.snow.css";
 
 export default function AdminCreateClue() {
@@ -10,14 +11,29 @@ export default function AdminCreateClue() {
   const [category, setCategory] = useState("Uncategorized");
   const [type, setType] = useState("text");
   const [textContent, setTextContent] = useState("");
+  const [gridItems, setGridItems] = useState<GridComposerItem[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [protectionType, setProtectionType] = useState("none");
   const [protectionCode, setProtectionCode] = useState("");
   const [theme, setTheme] = useState("default");
+  const [customThemes, setCustomThemes] = useState<any[]>([]);
+  const [newThemeName, setNewThemeName] = useState("");
+  const [themePageBg, setThemePageBg] = useState("#111827");
+  const [themePageText, setThemePageText] = useState("#f9fafb");
+  const [themeCardBg, setThemeCardBg] = useState("#1f2937");
+  const [themeCardBorder, setThemeCardBorder] = useState("#374151");
+  const [showThemeSection, setShowThemeSection] = useState(false);
   const [bgImage, setBgImage] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    fetch("/api/admin/themes")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setCustomThemes(Array.isArray(data) ? data : []))
+      .catch(() => setCustomThemes([]));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +52,38 @@ export default function AdminCreateClue() {
     
     if (type === "text") {
       formData.append("text_content", textContent);
+    } else if (type === "grid") {
+      if (!gridItems.length) {
+        setError("Ajoute au moins un élément dans la grille.");
+        setLoading(false);
+        return;
+      }
+      const mediaItems = gridItems.filter((item) => item.type !== "text");
+      if (mediaItems.some((item) => !item.file && !item.content)) {
+        setError("Chaque média de la grille doit avoir un fichier.");
+        setLoading(false);
+        return;
+      }
+
+      const payload = gridItems.map((item) => ({
+        id: item.id,
+        type: item.type,
+        row: item.row,
+        col: item.col,
+        rowSpan: item.rowSpan,
+        colSpan: item.colSpan,
+        zIndex: item.zIndex || 1,
+        text: item.text || "",
+        content: item.content,
+        fileIndex:
+          item.type !== "text" && item.file
+            ? mediaItems.filter((mediaItem) => mediaItem.file).findIndex((mediaItem) => mediaItem.id === item.id)
+            : undefined,
+      }));
+      formData.append("grid_items", JSON.stringify(payload));
+      mediaItems.forEach((item) => {
+        if (item.file) formData.append("item_files", item.file);
+      });
     } else {
       if (!file) {
         setError("Please select a file.");
@@ -60,10 +108,10 @@ export default function AdminCreateClue() {
         navigate(`/admin/clues/${data.id}`);
       } else {
         const data = await res.json();
-        setError(data.error || "Failed to create clue");
+        setError(data.error || "Impossible de créer l'indice");
       }
     } catch (err) {
-      setError("An error occurred");
+      setError("Une erreur est survenue");
     } finally {
       setLoading(false);
     }
@@ -74,6 +122,7 @@ export default function AdminCreateClue() {
     { id: "image", label: "Image", icon: ImageIcon },
     { id: "video", label: "Video", icon: Video },
     { id: "audio", label: "Audio", icon: Music },
+    { id: "grid", label: "Grille", icon: LayoutGrid },
   ];
 
   const quillModules = {
@@ -84,6 +133,26 @@ export default function AdminCreateClue() {
       [{ 'list': 'ordered'}, { 'list': 'bullet' }],
       ['link', 'clean']
     ],
+  };
+
+  const createCustomTheme = async () => {
+    if (!newThemeName.trim()) return;
+    const res = await fetch("/api/admin/themes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: newThemeName,
+        pageBgColor: themePageBg,
+        pageTextColor: themePageText,
+        cardBgColor: themeCardBg,
+        cardBorderColor: themeCardBorder,
+      }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    setCustomThemes((prev) => [...prev, data.theme]);
+    setTheme(`custom:${data.theme.id}`);
+    setNewThemeName("");
   };
 
   return (
@@ -97,18 +166,18 @@ export default function AdminCreateClue() {
           className="inline-flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white mb-8 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Dashboard
+          Retour au tableau de bord
         </Link>
 
         <div className="bg-white dark:bg-zinc-800 rounded-2xl border border-zinc-200 dark:border-zinc-700 p-8 shadow-sm">
-          <h2 className="text-2xl font-semibold mb-8">Create New Clue</h2>
+          <h2 className="text-2xl font-semibold mb-8">Créer un indice</h2>
 
           <form onSubmit={handleSubmit} className="space-y-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Title */}
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                  Clue Title
+                  Titre de l'indice
                 </label>
                 <input
                   type="text"
@@ -116,21 +185,21 @@ export default function AdminCreateClue() {
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full px-4 py-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   required
-                  placeholder="e.g., The Hidden Key"
+                  placeholder="Ex: La clé cachée"
                 />
               </div>
 
               {/* Category */}
               <div>
                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                  Category / Event
+                  Catégorie / événement
                 </label>
                 <input
                   type="text"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-full px-4 py-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="e.g., Team Building 2026"
+                  placeholder="Ex: Team Building 2026"
                 />
               </div>
             </div>
@@ -138,7 +207,7 @@ export default function AdminCreateClue() {
             {/* Content Type */}
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">
-                Content Type
+                Type de contenu
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {types.map((t) => {
@@ -165,7 +234,7 @@ export default function AdminCreateClue() {
             {/* Content Input */}
             <div>
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                {type === "text" ? "Text Content" : "Upload File"}
+                {type === "text" ? "Contenu texte" : type === "grid" ? "Composition en grille" : "Téléverser un fichier"}
               </label>
               {type === "text" ? (
                 <div className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-xl overflow-hidden border border-zinc-300 dark:border-zinc-700">
@@ -175,9 +244,11 @@ export default function AdminCreateClue() {
                     onChange={setTextContent}
                     modules={quillModules}
                     className="h-48 pb-10"
-                    placeholder="Enter the clue text here..."
+                    placeholder="Saisis le texte de l'indice..."
                   />
                 </div>
+              ) : type === "grid" ? (
+                <GridComposer items={gridItems} setItems={setGridItems} />
               ) : (
                 <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-zinc-300 dark:border-zinc-700 border-dashed rounded-xl bg-zinc-50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
                   <div className="space-y-1 text-center">
@@ -187,7 +258,7 @@ export default function AdminCreateClue() {
                         htmlFor="file-upload"
                         className="relative cursor-pointer bg-white dark:bg-zinc-800 rounded-md font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 px-2 py-1"
                       >
-                        <span>Upload a file</span>
+                        <span>Téléverser un fichier</span>
                         <input
                           id="file-upload"
                           name="file-upload"
@@ -206,7 +277,7 @@ export default function AdminCreateClue() {
                       </label>
                     </div>
                     <p className="text-xs text-zinc-500 dark:text-zinc-500">
-                      {file ? file.name : `Select ${type} file`}
+                      {file ? file.name : `Choisir un fichier ${type}`}
                     </p>
                   </div>
                 </div>
@@ -215,64 +286,116 @@ export default function AdminCreateClue() {
 
             {/* Theme Selection */}
             <div className="pt-6 border-t border-zinc-200 dark:border-zinc-700">
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">
-                Visual Theme
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                {[
-                  { id: "default", label: "Default" },
-                  { id: "pirate", label: "Pirate" },
-                  { id: "scifi", label: "Sci-Fi" },
-                  { id: "halloween", label: "Halloween" },
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTheme(t.id)}
-                    className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
-                      theme === t.id
-                        ? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300"
-                        : "border-zinc-200 dark:border-zinc-700 hover:border-indigo-300 dark:hover:border-indigo-700 text-zinc-600 dark:text-zinc-400"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowThemeSection((prev) => !prev)}
+                className="w-full text-left px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 transition-colors"
+              >
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  {showThemeSection ? "Masquer le thème visuel" : "Afficher le thème visuel"}
+                </span>
+              </button>
 
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                Custom Background Image (Optional)
-              </label>
-              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-zinc-300 dark:border-zinc-700 border-dashed rounded-xl bg-zinc-50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
-                <div className="space-y-1 text-center">
-                  <ImageIcon className="mx-auto h-12 w-12 text-zinc-400" />
-                  <div className="flex text-sm text-zinc-600 dark:text-zinc-400 justify-center">
-                    <label
-                      htmlFor="bg-upload"
-                      className="relative cursor-pointer bg-white dark:bg-zinc-800 rounded-md font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 px-2 py-1"
-                    >
-                      <span>Upload background</span>
-                      <input
-                        id="bg-upload"
-                        name="bg-upload"
-                        type="file"
-                        className="sr-only"
-                        onChange={(e) => setBgImage(e.target.files?.[0] || null)}
-                        accept="image/*"
-                      />
-                    </label>
+              {showThemeSection && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">
+                    Thème visuel
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                    {[
+                      { id: "default", label: "Défaut" },
+                      { id: "pirate", label: "Pirate" },
+                      { id: "scifi", label: "Sci-Fi" },
+                      { id: "halloween", label: "Halloween" },
+                    ].map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setTheme(t.id)}
+                        className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                          theme === t.id
+                            ? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300"
+                            : "border-zinc-200 dark:border-zinc-700 hover:border-indigo-300 dark:hover:border-indigo-700 text-zinc-600 dark:text-zinc-400"
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                    {customThemes.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setTheme(`custom:${t.id}`)}
+                        className={`p-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                          theme === `custom:${t.id}`
+                            ? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300"
+                            : "border-zinc-200 dark:border-zinc-700 hover:border-indigo-300 dark:hover:border-indigo-700 text-zinc-600 dark:text-zinc-400"
+                        }`}
+                      >
+                        {t.name}
+                      </button>
+                    ))}
                   </div>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-500">
-                    {bgImage ? bgImage.name : "Select an image to override the theme background"}
-                  </p>
+
+                  <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 p-4 space-y-3 mb-6">
+                    <p className="text-sm font-medium">Creer un theme personnalise</p>
+                    <input
+                      type="text"
+                      value={newThemeName}
+                      onChange={(e) => setNewThemeName(e.target.value)}
+                      placeholder="Nom du theme"
+                      className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-transparent text-sm"
+                    />
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <label className="text-xs">Fond page<input type="color" value={themePageBg} onChange={(e) => setThemePageBg(e.target.value)} className="w-full h-9 mt-1" /></label>
+                      <label className="text-xs">Texte page<input type="color" value={themePageText} onChange={(e) => setThemePageText(e.target.value)} className="w-full h-9 mt-1" /></label>
+                      <label className="text-xs">Fond carte<input type="color" value={themeCardBg} onChange={(e) => setThemeCardBg(e.target.value)} className="w-full h-9 mt-1" /></label>
+                      <label className="text-xs">Bord carte<input type="color" value={themeCardBorder} onChange={(e) => setThemeCardBorder(e.target.value)} className="w-full h-9 mt-1" /></label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={createCustomTheme}
+                      className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm"
+                    >
+                      Enregistrer le theme
+                    </button>
+                  </div>
+
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                    Image de fond personnalisée (optionnel)
+                  </label>
+                  <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-zinc-300 dark:border-zinc-700 border-dashed rounded-xl bg-zinc-50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">
+                    <div className="space-y-1 text-center">
+                      <ImageIcon className="mx-auto h-12 w-12 text-zinc-400" />
+                      <div className="flex text-sm text-zinc-600 dark:text-zinc-400 justify-center">
+                        <label
+                          htmlFor="bg-upload"
+                          className="relative cursor-pointer bg-white dark:bg-zinc-800 rounded-md font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500 px-2 py-1"
+                        >
+                          <span>Téléverser un fond</span>
+                          <input
+                            id="bg-upload"
+                            name="bg-upload"
+                            type="file"
+                            className="sr-only"
+                            onChange={(e) => setBgImage(e.target.files?.[0] || null)}
+                            accept="image/*"
+                          />
+                        </label>
+                      </div>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-500">
+                        {bgImage ? bgImage.name : "Choisir une image pour remplacer le fond du thème"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Protection */}
             <div className="pt-6 border-t border-zinc-200 dark:border-zinc-700">
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">
-                Access Protection
+                Protection d'accès
               </label>
               <div className="space-y-4">
                 <div className="flex gap-4">
@@ -293,7 +416,7 @@ export default function AdminCreateClue() {
                 {protectionType !== "none" && (
                   <div className="mt-4">
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                      {protectionType === "pin" ? "PIN Code" : "Password"}
+                      {protectionType === "pin" ? "Code PIN" : "Mot de passe"}
                     </label>
                     <input
                       type={protectionType === "pin" ? "number" : "text"}
@@ -301,7 +424,7 @@ export default function AdminCreateClue() {
                       onChange={(e) => setProtectionCode(e.target.value)}
                       className="w-full px-4 py-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                       required
-                      placeholder={`Enter ${protectionType}...`}
+                      placeholder={`Saisir ${protectionType}...`}
                     />
                   </div>
                 )}
@@ -316,7 +439,7 @@ export default function AdminCreateClue() {
                 disabled={loading}
                 className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
               >
-                {loading ? "Creating..." : "Create Clue"}
+                {loading ? "Création..." : "Créer l'indice"}
               </button>
             </div>
           </form>
